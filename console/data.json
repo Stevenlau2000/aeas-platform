@@ -1,0 +1,888 @@
+{
+  "platform": {
+    "name": "AEAOS",
+    "version": "2.0.0",
+    "kernel": "1.0.0",
+    "runtime": "2.0.0",
+    "sdk": "1.0.0"
+  },
+  "capabilities": [
+    {
+      "id": "reasoning",
+      "version": "1.0.0",
+      "name": "Reasoning",
+      "kind": "reasoning",
+      "description": "Quantified, evidence-backed reasoning",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/reasoning/capability.md",
+      "depends_on": [],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:Knowledge"
+      ],
+      "status": "published",
+      "human_in_the_loop": [],
+      "assets": [
+        "Knowledge",
+        "Case"
+      ],
+      "parallel_safe": true,
+      "side_effecting": false,
+      "idempotent": true,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "planning",
+      "version": "1.0.0",
+      "name": "Planning",
+      "kind": "orchestration",
+      "description": "Decompose decision into executable task graph",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/planning/capability.md",
+      "depends_on": [
+        "reasoning@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:Configuration"
+      ],
+      "status": "published",
+      "human_in_the_loop": [],
+      "assets": [
+        "Workflow"
+      ],
+      "parallel_safe": true,
+      "side_effecting": false,
+      "idempotent": true,
+      "evaluation": "optional",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "maintenance",
+      "version": "1.0.0",
+      "name": "Maintenance",
+      "kind": "tool",
+      "description": "Industrial equipment fault diagnosis & work-order",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/maintenance/capability.md",
+      "depends_on": [
+        "reasoning@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:Telemetry",
+        "write:WorkOrder",
+        "call:DiagnosisTool"
+      ],
+      "status": "published",
+      "human_in_the_loop": [
+        "Risk"
+      ],
+      "assets": [
+        "Case",
+        "Knowledge"
+      ],
+      "parallel_safe": false,
+      "side_effecting": true,
+      "idempotent": false,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "consulting",
+      "version": "1.0.0",
+      "name": "Consulting",
+      "kind": "reasoning",
+      "description": "Enterprise consulting & decision advisory",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/consulting/capability.md",
+      "depends_on": [
+        "reasoning@1.0",
+        "planning@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:CRM",
+        "read:Knowledge",
+        "read:Configuration"
+      ],
+      "status": "published",
+      "human_in_the_loop": [
+        "Contract",
+        "Compliance"
+      ],
+      "assets": [
+        "Case",
+        "Knowledge",
+        "Policy"
+      ],
+      "parallel_safe": true,
+      "side_effecting": false,
+      "idempotent": true,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "sales",
+      "version": "1.0.0",
+      "name": "Sales",
+      "kind": "generative",
+      "description": "Advisory selling — lead scoring, solution matching",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/sales/capability.md",
+      "depends_on": [
+        "consulting@1.0",
+        "reasoning@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:CRM",
+        "write:CRM",
+        "read:ProductCatalog"
+      ],
+      "status": "published",
+      "human_in_the_loop": [
+        "Contract",
+        "Compliance"
+      ],
+      "assets": [
+        "Case",
+        "Knowledge",
+        "Template"
+      ],
+      "parallel_safe": true,
+      "side_effecting": true,
+      "idempotent": false,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "training",
+      "version": "1.0.0",
+      "name": "Training",
+      "kind": "generative",
+      "description": "Turn enterprise knowledge into courses & coaching",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/training/capability.md",
+      "depends_on": [
+        "consulting@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:Knowledge",
+        "read:Configuration"
+      ],
+      "status": "published",
+      "human_in_the_loop": [],
+      "assets": [
+        "Knowledge",
+        "Template",
+        "Case"
+      ],
+      "parallel_safe": true,
+      "side_effecting": false,
+      "idempotent": true,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    },
+    {
+      "id": "coaching",
+      "version": "1.0.0",
+      "name": "Coaching",
+      "kind": "generative",
+      "description": "Sales coaching & deal advisory — deal coaching, call coaching, negotiation, pipeline hygiene",
+      "owner": "AEAOS Kernel Team",
+      "spec_ref": "capabilities/coaching/capability.md",
+      "depends_on": [
+        "consulting@1.0",
+        "sales@1.0",
+        "reasoning@1.0"
+      ],
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=1.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permission": [
+        "read:CRM",
+        "read:Knowledge",
+        "read:ProductCatalog"
+      ],
+      "status": "published",
+      "human_in_the_loop": [
+        "Contract",
+        "Compliance"
+      ],
+      "assets": [
+        "Case",
+        "Knowledge",
+        "Template"
+      ],
+      "parallel_safe": true,
+      "side_effecting": true,
+      "idempotent": false,
+      "evaluation": "required",
+      "evolution": {
+        "hot_swappable": true,
+        "learn_from": [
+          "AEP.ImproveSignal"
+        ]
+      }
+    }
+  ],
+  "marketplace": [
+    {
+      "schema_version": "2.0",
+      "capability_id": "ac-sales-coach",
+      "artifact_version": "1.0.0",
+      "name": "ac-sales-coach",
+      "publisher": "AEAOS Community",
+      "license": "MIT",
+      "kind": "application",
+      "description": "AC Sales Coach — active coaching for deal progression, call coaching, objection handling, pipeline hygiene & negotiation.",
+      "config_hash": "adb2948b292ab238747891cc8fa578649a65f6ffb8164a14119cc10c40767551",
+      "quality_gate": {
+        "capability": "ac-sales-coach",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "manifest_schema",
+            "passed": true,
+            "detail": "Manifest schema valid"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=4, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          },
+          {
+            "category": "compatibility",
+            "passed": true,
+            "detail": "compatible with platform baseline"
+          }
+        ]
+      },
+      "published_at": "now",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "dependencies": [
+        {
+          "id": "reasoning",
+          "version": ">=1.0.0"
+        },
+        {
+          "id": "sales",
+          "version": ">=1.0.0"
+        },
+        {
+          "id": "consulting",
+          "version": ">=1.0.0"
+        }
+      ],
+      "permissions": [
+        "sales"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "composed_of": [
+        "sales"
+      ],
+      "_file": "ac-sales-coach@1.0.0.yaml"
+    },
+    {
+      "capability_id": "aeaos-demo-consultant",
+      "artifact_version": "1.0.0",
+      "config_hash": "5c9e7935cabba54de83cf4a0c5d2f29890a77c19649a34f5e51f368b9bf30123",
+      "quality_gate": {
+        "capability": "aeaos-demo-consultant",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=5, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "aeaos-demo-consultant — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "schema_version": "2.0",
+      "name": "aeaos-demo-consultant",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:CRM",
+        "read:Configuration"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "aeaos-demo-consultant@1.0.0.yaml"
+    },
+    {
+      "capability_id": "ai-project-delivery",
+      "artifact_version": "1.0.0",
+      "config_hash": "3689753d06957781fbc45fbd5e88d93910592e2d62259ccd5645f52cd104fb66",
+      "quality_gate": {
+        "capability": "ai-project-delivery",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=4, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "ai-project-delivery — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "schema_version": "2.0",
+      "name": "ai-project-delivery",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:CRM",
+        "read:Configuration"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "ai-project-delivery@1.0.0.yaml"
+    },
+    {
+      "capability_id": "ai-sales-os",
+      "artifact_version": "1.0.0",
+      "config_hash": "1a0d2ce9d3099dae46c9141b141913a00a139acd700d7cd4f0b241955764473a",
+      "quality_gate": {
+        "capability": "ai-sales-os",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=5, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "ai-sales-os — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "composed_of": [
+        "sales"
+      ],
+      "schema_version": "2.0",
+      "name": "ai-sales-os",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:CRM",
+        "write:CRM",
+        "read:ProductCatalog"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "ai-sales-os@1.0.0.yaml"
+    },
+    {
+      "capability_id": "ai-smart-business",
+      "artifact_version": "1.0.0",
+      "config_hash": "28b6609e63b43f588c3fa962562ea30fa9711a4ca774329ae2e18da6777592c2",
+      "quality_gate": {
+        "capability": "ai-smart-business",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=5, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "ai-smart-business — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "schema_version": "2.0",
+      "name": "ai-smart-business",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:CRM",
+        "read:Configuration"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "ai-smart-business@1.0.0.yaml"
+    },
+    {
+      "capability_id": "ai-training-os",
+      "artifact_version": "1.0.0",
+      "config_hash": "150d21c6a4dcc7344c3a65423be8b43bce56cf07d3dfbc9a73f29a1f8ea9be30",
+      "quality_gate": {
+        "capability": "ai-training-os",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=4, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "ai-training-os — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "composed_of": [
+        "training"
+      ],
+      "schema_version": "2.0",
+      "name": "ai-training-os",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:Configuration"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "ai-training-os@1.0.0.yaml"
+    },
+    {
+      "capability_id": "amaris-consultant",
+      "artifact_version": "1.0.0",
+      "config_hash": "4044b5962e6c180a3ddd1716a6d6d53433bf441866bae97a8d3b610e997fd301",
+      "quality_gate": {
+        "capability": "amaris-consultant",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=5, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "amaris-consultant — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "schema_version": "2.0",
+      "name": "amaris-consultant",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:CRM",
+        "read:Configuration"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "amaris-consultant@1.0.0.yaml"
+    },
+    {
+      "capability_id": "impro-maintenance",
+      "artifact_version": "1.0.0",
+      "config_hash": "7f0c7d527692a518cf00f77f99856cec855ab35f109f699f396bda41227cd11c",
+      "quality_gate": {
+        "capability": "impro-maintenance",
+        "passed": true,
+        "results": [
+          {
+            "category": "unit",
+            "passed": true,
+            "detail": "validator passed"
+          },
+          {
+            "category": "safety",
+            "passed": true,
+            "detail": "no injection patterns"
+          },
+          {
+            "category": "knowledge",
+            "passed": true,
+            "detail": "knowledge IR present + AKP citation_coverage=1.00 (≥0.33)"
+          },
+          {
+            "category": "integration",
+            "passed": true,
+            "detail": "plan steps=5, status=ok"
+          },
+          {
+            "category": "regression",
+            "passed": true,
+            "detail": "config_hash stable, status consistent"
+          }
+        ]
+      },
+      "published_at": "now",
+      "publisher": "AEAOS Community",
+      "description": "impro-maintenance — AEAOS application",
+      "license": "MIT",
+      "kind": "application",
+      "dependencies": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "composed_of": [
+        "maintenance"
+      ],
+      "schema_version": "2.0",
+      "name": "impro-maintenance",
+      "compatibility": {
+        "kernel": ">=1.0.0",
+        "runtime": ">=2.0.0",
+        "sdk": ">=1.0.0"
+      },
+      "permissions": [
+        "read:Knowledge",
+        "read:Telemetry",
+        "write:WorkOrder",
+        "call:DiagnosisTool"
+      ],
+      "rating": {
+        "score": 5.0,
+        "votes": 1,
+        "derived_from": "quality_gate"
+      },
+      "_file": "impro-maintenance@1.0.0.yaml"
+    }
+  ],
+  "installed": {
+    "amaris-consultant": {
+      "version": "1.0.0",
+      "config_hash": "4044b5962e6c180a3ddd1716a6d6d53433bf441866bae97a8d3b610e997fd301",
+      "installed_at": "2026-07-13T09:54:26",
+      "kind": "application",
+      "compat_check": {
+        "compatible": true,
+        "reasons": [
+          "kernel: 1.0.0 ✅ >=1.0.0",
+          "runtime: 2.0.0 ✅ >=2.0.0",
+          "sdk: 1.0.0 ✅ >=1.0.0"
+        ]
+      }
+    }
+  },
+  "releases": {},
+  "compatibility": {
+    "baseline": {
+      "kernel": "1.0.0",
+      "runtime": "2.0.0",
+      "sdk": "1.0.0",
+      "policy": "1.0.0",
+      "foundation": "1.0.0"
+    },
+    "results": [
+      {
+        "capability": "reasoning",
+        "compatible": true
+      },
+      {
+        "capability": "planning",
+        "compatible": true
+      },
+      {
+        "capability": "maintenance",
+        "compatible": true
+      },
+      {
+        "capability": "consulting",
+        "compatible": true
+      },
+      {
+        "capability": "sales",
+        "compatible": true
+      },
+      {
+        "capability": "training",
+        "compatible": true
+      },
+      {
+        "capability": "coaching",
+        "compatible": true
+      }
+    ]
+  }
+}
