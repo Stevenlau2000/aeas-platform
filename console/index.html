@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEAOS Console</title>
+<style>
+:root { --bg: #0f172a; --surface: #1e293b; --surface2: #334155; --text: #f1f5f9; --text2: #94a3b8; --accent: #38bdf8; --green: #4ade80; --red: #f87171; --yellow: #fbbf24; --sidebar: 240px; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+.sidebar { width: var(--sidebar); background: var(--surface); padding: 20px 0; display: flex; flex-direction: column; border-right: 1px solid var(--surface2); position: fixed; top:0; left:0; height:100vh; overflow-y:auto; }
+.sidebar .logo { padding: 0 20px 20px; font-size: 18px; font-weight: 700; color: var(--accent); border-bottom: 1px solid var(--surface2); margin-bottom: 10px; }
+.sidebar .logo small { display:block; font-size:11px; font-weight:400; color:var(--text2); margin-top:4px; }
+.sidebar a { display: block; padding: 10px 20px; color: var(--text2); text-decoration: none; font-size: 14px; cursor: pointer; transition: .15s; border-left: 3px solid transparent; }
+.sidebar a:hover, .sidebar a.active { color: var(--text); background: var(--surface2); border-left-color: var(--accent); }
+.main { margin-left: var(--sidebar); flex:1; padding: 30px; max-width: calc(100vw - var(--sidebar)); }
+.page { display: none; }
+.page.active { display: block; }
+h1 { font-size: 24px; margin-bottom: 20px; }
+h2 { font-size: 18px; margin: 20px 0 10px; color: var(--accent); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 16px; margin-bottom: 24px; }
+.card { background: var(--surface); border-radius: 12px; padding: 20px; border:1px solid var(--surface2); }
+.card .num { font-size: 32px; font-weight: 700; }
+.card .lbl { font-size: 13px; color: var(--text2); margin-top: 4px; }
+table { width:100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--surface2); }
+th { color: var(--text2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.badge-green { background: var(--green); color: #000; }
+.badge-red { background: var(--red); color: #fff; }
+.badge-yellow { background: var(--yellow); color: #000; }
+.badge-blue { background: var(--accent); color: #000; }
+.pct-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow:hidden; margin-top:4px; }
+.pct-bar .fill { height:100%; background: var(--accent); border-radius:3px; }
+pre { background: var(--surface); padding: 16px; border-radius: 8px; overflow: auto; font-size: 13px; max-height: 400px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media(max-width:768px){ .sidebar { width: 60px; } .sidebar .logo span { display:none; } .sidebar .logo small { display:none; } .sidebar a span { display:none; } .main { margin-left:60px; } .grid-2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="logo">AEAOS <small>Platform Console v2.0</small></div>
+  <a class="active" onclick="showPage('overview')"><span>📊 Overview</span></a>
+  <a onclick="showPage('apps')"><span>📦 Applications</span></a>
+  <a onclick="showPage('capabilities')"><span>🧩 Capabilities</span></a>
+  <a onclick="showPage('marketplace')"><span>🏪 Marketplace</span></a>
+  <a onclick="showPage('releases')"><span>🚀 Releases</span></a>
+  <a onclick="showPage('registry')"><span>📋 Registry</span></a>
+  <a onclick="showPage('compatibility')"><span>🔗 Compatibility</span></a>
+</nav>
+
+<div class="main" id="main"></div>
+
+<script>
+let DATA = null;
+
+async function load() {
+  const r = await fetch('data.json');
+  DATA = await r.json();
+  renderPages();
+  showPage('overview');
+}
+
+// ── Page system ──
+const PAGES = ['overview','apps','capabilities','marketplace','releases','registry','compatibility'];
+function showPage(name) {
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a => { if(a.textContent.includes(name) || (name==='overview' && a.textContent.includes('Overview'))) a.classList.add('active'); });
+  const el = document.getElementById('page-'+name);
+  if(el) { document.querySelectorAll('.page').forEach(p=>p.classList.remove('active')); el.classList.add('active'); }
+}
+
+function renderPages() {
+  const main = document.getElementById('main');
+  main.innerHTML = PAGES.map(p => `<div class="page${p==='overview'?' active':''}" id="page-${p}"></div>`).join('');
+  renderOverview();
+  renderApps();
+  renderCapabilities();
+  renderMarketplace();
+  renderReleases();
+  renderRegistry();
+  renderCompatibility();
+}
+
+// ── Overview ──
+function renderOverview() {
+  const d = DATA;
+  const caps = d.capabilities || [];
+  const mkt = d.marketplace || [];
+  const inst = Object.keys(d.installed || {}).length;
+  const rels = Object.keys(d.releases || {}).length;
+  const compat = d.compatibility?.results?.length || 0;
+  document.getElementById('page-overview').innerHTML = `
+    <h1>Platform Overview</h1>
+    <div class="cards">
+      <div class="card"><div class="num">${caps.length}</div><div class="lbl">Capabilities</div></div>
+      <div class="card"><div class="num">${mkt.length}</div><div class="lbl">Marketplace Packages</div></div>
+      <div class="card"><div class="num">${inst}</div><div class="lbl">Installed</div></div>
+      <div class="card"><div class="num">${rels}</div><div class="lbl">Release Tracks</div></div>
+      <div class="card"><div class="num">${compat}</div><div class="lbl">Compatibility Checks</div></div>
+      <div class="card"><div class="num">${d.platform?.runtime || '?'}</div><div class="lbl">Runtime Version</div></div>
+    </div>
+    <div class="grid-2">
+      <div><h2>Marketplace Packages</h2><table>${mkt.slice(0,5).map(p => `<tr><td>${p.capability_id}</td><td><span class="badge badge-blue">v${p.artifact_version}</span></td><td>${p.license||'MIT'}</td></tr>`).join('')}</table></div>
+      <div><h2>Release Status</h2><table>${Object.entries(d.releases||{}).slice(0,5).map(([id,r]) => `<tr><td>${id}</td><td><span class="badge ${stageBadge(r.current_stage)}">${r.current_stage}</span></td><td>v${r.current_version}</td></tr>`).join('')}</table></div>
+    </div>
+  `;
+}
+
+// ── Apps (Installed) ──
+function renderApps() {
+  const inst = DATA.installed || {};
+  const entries = Object.entries(inst);
+  document.getElementById('page-apps').innerHTML = `
+    <h1>Applications</h1>
+    ${entries.length === 0 ? '<p style="color:var(--text2)">No packages installed. Use <code>aeaos install &lt;package&gt;</code>.</p>' : `
+    <table><tr><th>Package</th><th>Version</th><th>Installed At</th><th>Kind</th><th>Config Hash</th></tr>
+    ${entries.map(([id, e]) => `<tr><td><strong>${id}</strong></td><td><span class="badge badge-blue">v${e.version}</span></td><td>${e.installed_at||'-'}</td><td>${e.kind||'-'}</td><td style="font-size:11px;color:var(--text2)">${(e.config_hash||'').slice(0,16)}…</td></tr>`).join('')}
+    </table>`}`;
+}
+
+// ── Capabilities ──
+function renderCapabilities() {
+  const caps = DATA.capabilities || [];
+  document.getElementById('page-capabilities').innerHTML = `
+    <h1>Capability Registry</h1>
+    <table><tr><th>ID</th><th>Name</th><th>Version</th><th>Kind</th><th>Depends On</th><th>Status</th></tr>
+    ${caps.map(c => `<tr><td><strong>${c.id}</strong></td><td>${c.name}</td><td><span class="badge badge-blue">v${c.version}</span></td><td>${c.kind}</td><td style="font-size:12px;color:var(--text2)">${(c.depends_on||[]).join(', ') || '-'}</td><td><span class="badge badge-green">${c.status||'published'}</span></td></tr>`).join('')}
+    </table>`; 
+}
+
+// ── Marketplace ──
+function renderMarketplace() {
+  const pkgs = DATA.marketplace || [];
+  document.getElementById('page-marketplace').innerHTML = `
+    <h1>Marketplace (${pkgs.length} packages)</h1>
+    <table><tr><th>Package</th><th>Version</th><th>Rating</th><th>License</th><th>Kind</th><th>Quality Gate</th></tr>
+    ${pkgs.map(p => `<tr><td><strong>${p.capability_id}</strong></td><td><span class="badge badge-blue">v${p.artifact_version}</span></td><td>${starRating(p.rating?.score||5)}</td><td>${p.license||'MIT'}</td><td>${p.kind||'app'}</td><td>${p.quality_gate?.passed ? '<span class="badge badge-green">PASS</span>' : '<span class="badge badge-red">FAIL</span>'}</td></tr>`).join('')}
+    </table>`;
+}
+
+// ── Releases ──
+function renderReleases() {
+  const rels = DATA.releases || {};
+  const entries = Object.entries(rels);
+  document.getElementById('page-releases').innerHTML = `
+    <h1>Release Center</h1>
+    ${entries.length === 0 ? '<p style="color:var(--text2)">No releases tracked. Use <code>aeaos release promote</code>.</p>' : `
+    <table><tr><th>Package</th><th>Stage</th><th>Version</th><th>Canary %</th><th>History</th></tr>
+    ${entries.map(([id, r]) => `<tr><td><strong>${id}</strong></td><td><span class="badge ${stageBadge(r.current_stage)}">${r.current_stage}</span></td><td>v${r.current_version}</td><td>${r.canary_percent||0}%</td><td>${(r.history||[]).length} events</td></tr>`).join('')}
+    </table>`}`;
+}
+
+// ── Registry ──
+function renderRegistry() {
+  document.getElementById('page-registry').innerHTML = `
+    <h1>Everything Registry</h1>
+    <p style="color:var(--text2);margin-bottom:20px">PE-0: Capability sub-registry loaded. 7 more registry types to be added in PE-1/PE-3.</p>
+    <pre>${JSON.stringify({capability_count: (DATA.capabilities||[]).length, platform: DATA.platform, installed_count: Object.keys(DATA.installed||{}).length}, null, 2)}</pre>`;
+}
+
+// ── Compatibility ──
+function renderCompatibility() {
+  const compat = DATA.compatibility || {};
+  const results = compat.results || [];
+  document.getElementById('page-compatibility').innerHTML = `
+    <h1>Compatibility Matrix</h1>
+    <div class="cards">
+      <div class="card"><div style="font-size:14px;color:var(--text2)">Baseline</div><div style="font-size:16px;margin-top:4px">${JSON.stringify(compat.baseline||DATA.platform).replace(/[{}"]/g,'')}</div></div>
+      <div class="card"><div class="num">${results.length}</div><div class="lbl">Checks</div></div>
+    </div>
+    <table><tr><th>Capability</th><th>Status</th></tr>
+    ${results.map(r => `<tr><td><strong>${r.capability}</strong></td><td>${r.compatible ? '<span class="badge badge-green">✅ Compatible</span>' : '<span class="badge badge-red">❌ Incompatible</span>'}</td></tr>`).join('')}
+    </table>`;
+}
+
+// ── Helpers ──
+function stageBadge(s) {
+  const m = {draft:'badge-yellow', review:'badge-blue', qa:'badge-blue', canary:'badge-yellow', production:'badge-green', rollback:'badge-red'};
+  return m[s] || 'badge-blue';
+}
+function starRating(s) {
+  const f = Math.round(s/5*5);
+  return '★'.repeat(f) + '☆'.repeat(5-f) + ` ${s}`;
+}
+
+load();
+</script>
+</body>
+</html>
