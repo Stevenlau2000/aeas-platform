@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEAOS — Enterprise AI Agent Operating System</title>
+<style>
+:root { --bg: #0f172a; --surface: #1e293b; --surface2: #334155; --text: #f1f5f9; --text2: #94a3b8; --accent: #38bdf8; --green: #4ade80; --red: #f87171; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height:1.6; }
+.hero { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 80px 40px; text-align:center; border-bottom:1px solid var(--surface2); }
+.hero h1 { font-size: 48px; font-weight: 800; color: var(--accent); margin-bottom:12px; }
+.hero .tagline { font-size: 18px; color: var(--text2); max-width: 600px; margin:0 auto 24px; }
+.hero .principles { display:flex; justify-content:center; gap:24px; flex-wrap:wrap; margin-top:24px; font-size:13px; }
+.hero .principles span { background:var(--surface2); padding:6px 14px; border-radius:20px; color: var(--text2); }
+.cta { display:inline-block; background:var(--accent); color:#000; padding:12px 32px; border-radius:8px; font-weight:600; text-decoration:none; margin-top:12px; transition:.2s; }
+.cta:hover { transform:translateY(-2px); box-shadow:0 4px 16px rgba(56,189,248,.3); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px,1fr)); gap:20px; max-width:1100px; margin:40px auto; padding:0 20px; }
+.card { background:var(--surface); border-radius:12px; padding:24px; border:1px solid var(--surface2); transition:.2s; }
+.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.card .icon { font-size:32px; margin-bottom:12px; }
+.card h3 { font-size:16px; color:var(--accent); margin-bottom:8px; }
+.card p { font-size:13px; color:var(--text2); }
+.card .link { display:inline-block; margin-top:12px; color:var(--accent); text-decoration:none; font-size:13px; font-weight:600; }
+.footer { text-align:center; padding:40px; color:var(--text2); font-size:13px; border-top:1px solid var(--surface2); }
+@media(max-width:768px){ .hero h1 { font-size:32px; } .hero { padding:40px 20px; } }
+</style>
+</head>
+<body>
+<div class="hero">
+  <h1>🔷 AEAOS</h1>
+  <div class="tagline">Enterprise AI Agent Operating System — Understand. Decide. Execute. Evolve.</div>
+  <div class="principles">
+    <span>业务优先</span><span>决策优先</span><span>能力优先</span>
+    <span>配置优先</span><span>学习优先</span><span>演进优先</span>
+  </div>
+  <a class="cta" href="console/">🚀 Open Console</a>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="icon">📊</div>
+    <h3>Platform Console</h3>
+    <p>Dashboard overview — capabilities, marketplace packages, releases, compatibility matrix.</p>
+    <a class="link" href="console/">View Console →</a>
+  </div>
+  <div class="card">
+    <div class="icon">🧩</div>
+    <h3>7 Capabilities</h3>
+    <p>Reasoning · Planning · Consulting · Sales · Coaching · Training · Maintenance<br>7 kernel capabilities powering enterprise intelligence.</p>
+  </div>
+  <div class="card">
+    <div class="icon">📦</div>
+    <h3>Marketplace</h3>
+    <p>8 L5 application packages: AI Sales, AC Sales Coach, Smart Business, Training, Delivery, Consulting & more.</p>
+  </div>
+  <div class="card">
+    <div class="icon">🏗️</div>
+    <h3>DMS Architecture</h3>
+    <p>Domain Model Specification — frozen V2 keystone. Tenant → Org → Workspace isolation with P5 environment gates.</p>
+  </div>
+  <div class="card">
+    <div class="icon">🔐</div>
+    <h3>Registry & Security</h3>
+    <p>Registry-first, fail-closed. Solution signing, tenant isolation, environment promotion with P5 compliance gates.</p>
+  </div>
+  <div class="card">
+    <div class="icon">📐</div>
+    <h3>Platform Stack</h3>
+    <p>Specs → Architecture → Runtime → SDK → Platform → Apps → Operations.<br>7-layer lifecycle with full observability.</p>
+  </div>
+</div>
+
+<div class="footer">
+  AEAOS v2.0.0 — Enterprise AI Agent Operating System<br>
+  <span style="opacity:0.6">Understand. Decide. Execute. Evolve.</span>
+</div>
+</body>
+</html>
