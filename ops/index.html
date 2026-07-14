@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEAOS Operations Center</title>
+<!-- Brutalist 设计系统（与 console/ 共享视觉语言），零构建 -->
+<link rel="stylesheet" href="aeas-brutalist.css">
+</head>
+<body>
+
+<!-- 侧边栏导航：Overview / Runtime / Promo / Workspaces / Govern -->
+<nav class="sidebar">
+  <div class="logo">
+    <h1><span>&lt;</span>AEAOS<span>&gt;</span></h1>
+    <small>Operations Center · L7</small>
+  </div>
+  <a class="active" data-page="overview"><span class="dot"></span><span>Overview</span></a>
+  <a data-page="runtime"><span class="dot"></span><span>Runtime</span></a>
+  <a data-page="promo"><span class="dot"></span><span>Promo</span></a>
+  <a data-page="workspaces"><span class="dot"></span><span>Workspaces</span></a>
+  <a data-page="govern"><span class="dot"></span><span>Govern</span></a>
+  <div class="foot">static · zero-backend<br>poll 10s</div>
+</nav>
+
+<!-- 主区域：顶栏(Health/DLQ/tenant) + 内容页 -->
+<div class="main">
+  <div class="topbar">
+    <div class="title"><span class="accent">//</span> Operations</div>
+    <span class="pill" id="tb-health"><span class="health-light" id="tb-health-light"></span><span id="tb-health-txt">—</span></span>
+    <span class="pill" id="tb-dlq">DLQ <strong id="tb-dlq-n">0</strong></span>
+    <span class="pill" id="tb-tenant">tenant <strong id="tb-tenant-txt">global</strong></span>
+    <span class="pill" id="tb-updated">—</span>
+  </div>
+
+  <div class="content">
+    <div class="page active" id="page-overview"></div>
+    <div class="page" id="page-runtime"></div>
+    <div class="page" id="page-promo"></div>
+    <div class="page" id="page-workspaces"></div>
+    <div class="page" id="page-govern"></div>
+  </div>
+</div>
+
+<!-- 二次确认弹窗（回滚等） -->
+<div class="modal-mask" id="modal-mask">
+  <div class="modal">
+    <h3 id="modal-title">确认操作</h3>
+    <p id="modal-body"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">取消</button>
+      <button class="btn btn-amber" id="modal-ok">确认</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
