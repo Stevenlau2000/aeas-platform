@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEAOS 7-Layer Stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080c14;
+  --surface: #111827;
+  --surface2: #1e293b;
+  --surface3: #273449;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --amber: #F59E0B;
+  --amber-dim: #92400E;
+  --cyan: #06B6D4;
+  --green: #10B981;
+  --red: #EF4444;
+  --yellow: #FBBF24;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter Tight',-apple-system,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; overflow-x:hidden; position:relative; }
+body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(245,158,11,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+
+.topnav { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:16px; padding:14px 28px; background:rgba(8,12,20,.85); backdrop-filter:blur(12px); border-bottom:1px solid var(--surface2); }
+.topnav .home { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:600; color:var(--amber); text-decoration:none; padding:6px 12px; border:1px solid var(--surface3); border-radius:6px; transition:all .2s; }
+.topnav .home:hover { border-color:var(--amber); box-shadow:0 0 16px rgba(245,158,11,.15); }
+.topnav .ptitle { font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--text); font-weight:600; letter-spacing:-.3px; }
+.topnav .ver { margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--cyan); border:1px solid rgba(6,182,212,.3); padding:3px 10px; border-radius:20px; }
+
+.hero { position:relative; z-index:1; background:linear-gradient(180deg,#0f172a 0%,#080c14 100%); padding:64px 40px 46px; text-align:center; border-bottom:1px solid var(--surface2); overflow:hidden; }
+.hero::after { content:''; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--amber-dim),var(--amber),var(--amber-dim),transparent); }
+.hero h1 { font-family:'JetBrains Mono',monospace; font-size:44px; font-weight:700; color:var(--amber); letter-spacing:-1.5px; }
+.hero .sub { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text3); margin-top:10px; }
+.hero .tag { font-size:16px; color:var(--text2); max-width:680px; margin:16px auto 0; opacity:0; animation:fadeUp .6s .2s forwards; }
+@keyframes fadeUp { to { opacity:1; transform:translateY(0);} from { opacity:0; transform:translateY(10px);} }
+
+.section { position:relative; z-index:1; max-width:1080px; margin:48px auto; padding:0 24px; }
+.section > h2 { font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:600; color:var(--cyan); text-transform:uppercase; letter-spacing:1px; margin-bottom:18px; padding-bottom:10px; border-bottom:1px solid var(--surface2); }
+.section > h2 .num { color:var(--amber); margin-right:8px; }
+.intro { color:var(--text2); font-size:14px; max-width:820px; margin-bottom:24px; }
+
+/* ── Stack visualization ── */
+.stack { display:flex; flex-direction:column; gap:0; }
+.layer {
+  position:relative;
+  display:grid; grid-template-columns:64px 200px 1fr; gap:20px; align-items:center;
+  background:linear-gradient(135deg,var(--surface) 0%,rgba(17,24,39,.4) 100%);
+  border:1px solid var(--surface2); border-radius:10px; padding:20px 22px;
+  transition:all .25s; overflow:hidden;
+}
+.layer::before { content:''; position:absolute; top:0; left:0; width:100%; height:2px; background:linear-gradient(90deg,transparent,var(--amber-dim),var(--amber),var(--amber-dim),transparent); opacity:0; transition:opacity .3s; }
+.layer:hover { border-color:rgba(245,158,11,.2); box-shadow:0 0 24px rgba(245,158,11,.06); transform:translateY(-1px); }
+.layer:hover::before { opacity:1; }
+.layer .num { font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:700; color:var(--amber); text-align:center; opacity:.85; }
+.layer .lname { font-family:'JetBrains Mono',monospace; font-size:17px; color:var(--text); font-weight:600; }
+.layer .lrole { font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--cyan); margin-top:4px; text-transform:uppercase; letter-spacing:.5px; }
+.layer .ldesc { font-size:13px; color:var(--text3); line-height:1.7; }
+.layer .ldesc code { font-family:'JetBrains Mono',monospace; color:var(--amber); background:rgba(245,158,11,.08); padding:1px 6px; border-radius:3px; font-size:12px; }
+.connector { text-align:center; color:var(--amber-dim); font-size:18px; font-family:'JetBrains Mono',monospace; padding:4px 0; }
+
+@media(max-width:768px){
+  .hero{padding:44px 20px 32px;} .hero h1{font-size:30px;} .topnav{padding:12px 16px;} .section{padding:0 16px;}
+  .layer { grid-template-columns:44px 1fr; }
+  .layer .ldesc { grid-column:1 / -1; margin-top:10px; }
+}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a class="home" href="../">← AEAOS</a>
+  <div class="ptitle">7-Layer Stack</div>
+  <span class="ver">v2.0.0</span>
+</header>
+
+<section class="hero">
+  <h1>7-Layer Stack</h1>
+  <div class="sub">DMS §0 · Spec → Architecture → Runtime → SDK → Platform → Applications → Operations</div>
+  <div class="tag">One frozen domain model, one platform kernel, one runtime — consumed bottom-up by SDK, Platform, Applications and Operations. No parallel entity definitions, no architectural drift.</div>
+</section>
+
+<main>
+  <div class="section">
+    <h2><span class="num">//</span> The Stack</h2>
+    <p class="intro">Each layer is built on the one below it. The bottom three (Spec, Architecture, Runtime) are fixed V2 foundations; the top four (SDK, Platform, Applications, Operations) are the product surface that consumes them.</p>
+    <div class="stack" id="stack"></div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div>AEAOS v2.0.0 — Enterprise AI Agent Operating System</div>
+  <div class="motto">Understand. Decide. Execute. Evolve.</div>
+</footer>
+
+<script>
+// ── Layer descriptions sourced from docs/architecture/DMS.md and docs/platform/00-platform-kernel.md ──
+const LAYERS = [
+  { n:1, name:'Spec', role:'Domain Model', desc:'The frozen V2 Domain Model (DMS, frozen 2026-07-13). Defines every platform object — Tenant, Workspace, Solution, Application, Agent, Capability, Workflow, Tool, Knowledge — their URN identity, relationships, lifecycle and versioning. Everything below is built on this contract.' },
+  { n:2, name:'Architecture', role:'Platform Kernel', desc:'Platform Kernel manages the nine Registries — the true source for every object. Registry-first: the Runtime never persists, Platform = Registry. Exposes the Registry API and the Control Plane (aeaos CLI).' },
+  { n:3, name:'Runtime', role:'Stateless Executor', desc:'The V1 Runtime (poc/orchestrator.py) is a stateless executor. It loads objects from the Registry at startup, operates Capabilities via ACP-2 / ATP protocols, then discards context. No state, no hardcoding.' },
+  { n:4, name:'SDK', role:'Developer SDK', desc:'The Developer SDK (ARS-030) extends DMS objects — the contract for building Applications and Capabilities. Turns platform primitives into shippable, testable developer artifacts.' },
+  { n:5, name:'Platform', role:'Platform Layer', desc:'The product layer consuming L0–L5: Solution, Tenant, Workspace, Environment, Resource, Cloud, Marketplace, Release, Console, Portal, Ops. Delivered Package-first and Solution-first.' },
+  { n:6, name:'Applications', role:'Application Layer', desc:'Interactive UI / services per user role — AI Consultant App, Maintenance App, Sales Coach App. They reference Capabilities and Solutions and are deployed into Workspaces.' },
+  { n:7, name:'Operations', role:'Ops & Observability', desc:'Ops monitors every object (ops/collector.py, ops/index.html): DLQ, SLA and audit events (foundation.*). It closes the Understand → Decide → Execute → Evolve loop.' }
+];
+
+document.getElementById('stack').innerHTML = LAYERS.map((l,i)=>`
+  <div class="layer">
+    <div class="num">${l.n}</div>
+    <div>
+      <div class="lname">${l.name}</div>
+      <div class="lrole">${l.role}</div>
+    </div>
+    <div class="ldesc">${l.desc}</div>
+  </div>
+  ${i < LAYERS.length-1 ? '<div class="connector">▽</div>' : ''}`).join('');
+</script>
+</body>
+</html>
