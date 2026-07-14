@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AEAOS — Applications (L5)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #080c14;
+  --surface: #111827;
+  --surface2: #1e293b;
+  --surface3: #273449;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --amber: #F59E0B;
+  --amber-dim: #92400E;
+  --cyan: #06B6D4;
+  --green: #10B981;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Inter Tight', -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  overflow-x: hidden;
+  position: relative;
+}
+body::before {
+  content: '';
+  position: fixed; inset:0;
+  background-image:
+    linear-gradient(rgba(245,158,11,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,158,11,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Top Nav ── */
+.topnav {
+  position: sticky; top:0; z-index: 10;
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 28px;
+  background: rgba(8,12,20,.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--surface2);
+}
+.topnav .home {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 600;
+  color: var(--amber); text-decoration: none;
+  padding: 6px 12px; border: 1px solid var(--surface3);
+  border-radius: 6px; transition: all .2s;
+}
+.topnav .home:hover { border-color: var(--amber); box-shadow: 0 0 16px rgba(245,158,11,.15); }
+.topnav .ptitle {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px; color: var(--text);
+  font-weight: 600; letter-spacing: -.3px;
+}
+.topnav .ver {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--cyan);
+  border: 1px solid rgba(6,182,212,.3);
+  padding: 3px 10px; border-radius: 20px;
+}
+
+/* ── Hero ── */
+.hero {
+  position: relative; z-index: 1;
+  background: linear-gradient(180deg, #0f172a 0%, #080c14 100%);
+  padding: 64px 40px 46px;
+  text-align: center;
+  border-bottom: 1px solid var(--surface2);
+  overflow: hidden;
+}
+.hero::after {
+  content: '';
+  position: absolute; bottom:0; left:0; right:0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--amber-dim), var(--amber), var(--amber-dim), transparent);
+}
+.hero h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 44px; font-weight: 700;
+  color: var(--amber); letter-spacing: -1.5px;
+}
+.hero .sub { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--text3); margin-top: 10px; }
+.hero .tag { font-size: 16px; color: var(--text2); max-width: 640px; margin: 16px auto 0; opacity:0; animation: fadeUp .6s .2s forwards; }
+@keyframes fadeUp { to { opacity:1; transform:translateY(0); } from { opacity:0; transform:translateY(10px); } }
+
+/* ── Sections ── */
+.section { position:relative; z-index:1; max-width:1100px; margin:48px auto; padding:0 24px; }
+.section > h2 {
+  font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600;
+  color: var(--cyan); text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--surface2);
+}
+.section > h2 .num { color: var(--amber); margin-right: 8px; }
+.intro { color: var(--text2); font-size: 14px; max-width: 760px; margin-bottom: 8px; }
+
+/* ── Cards ── */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); gap: 16px; margin-top: 20px; }
+.card {
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(17,24,39,.4) 100%);
+  border: 1px solid var(--surface2); border-radius: 10px; padding: 22px;
+  transition: all .25s; position: relative; overflow: hidden;
+}
+.card::before {
+  content: ''; position: absolute; top:0; left:0; width: 100%; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--amber-dim), var(--amber), var(--amber-dim), transparent);
+  opacity: 0; transition: opacity .3s;
+}
+.card:hover { border-color: rgba(245,158,11,.2); box-shadow: 0 0 24px rgba(245,158,11,.06); transform: translateY(-2px); }
+.card:hover::before { opacity: 1; }
+
+.chead { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom: 8px; }
+.cid { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text3); }
+.card h3 { font-family: 'JetBrains Mono', monospace; font-size: 16px; color: var(--amber); margin-bottom: 6px; letter-spacing: -.2px; }
+.cdesc { font-size: 13px; color: var(--text3); line-height: 1.6; margin-bottom: 8px; }
+
+.mrow { display:flex; gap:8px; align-items:flex-start; font-size: 12px; margin-top: 8px; }
+.mrow .k { color: var(--text3); min-width: 92px; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding-top: 2px; }
+.mrow .v { color: var(--text2); flex:1; }
+.chip { display:inline-block; padding:3px 9px; margin:3px 4px 3px 0; font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--text2); background:var(--surface2); border:1px solid var(--surface3); border-radius:5px; }
+
+.badge { display:inline-block; padding:2px 10px; border-radius:4px; font-size:11px; font-weight:600; font-family:'JetBrains Mono',monospace; letter-spacing:.3px; }
+.badge-green { background:rgba(16,185,129,.15); color:var(--green); border:1px solid rgba(16,185,129,.3); }
+.badge-blue { background:rgba(6,182,212,.12); color:var(--cyan); border:1px solid rgba(6,182,212,.25); }
+.badge-amber { background:rgba(245,158,11,.12); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
+
+/* ── 高风险辅导治理提示 ── */
+.advisory {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--surface2);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; color: var(--text3); line-height: 1.5;
+}
+.advisory b { color: var(--amber); }
+
+/* ── CLI 提示 ── */
+.cmd {
+  display: inline-block; margin-top: 6px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--amber);
+  background: var(--surface2); border: 1px solid var(--surface3);
+  border-radius: 6px; padding: 6px 12px;
+}
+.cmd a { color: var(--amber); text-decoration: none; }
+.cli-link { color: var(--cyan); text-decoration: none; font-family:'JetBrains Mono',monospace; font-size:13px; }
+.cli-link:hover { text-decoration: underline; }
+
+.footer { position:relative; z-index:1; text-align:center; padding:40px; color:var(--text3); font-size:12px; border-top:1px solid var(--surface2); }
+.footer .motto { font-family:'JetBrains Mono',monospace; color:var(--text2); margin-top:6px; letter-spacing:.5px; }
+.footer .back { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--amber); text-decoration:none; }
+.footer .back:hover { text-decoration: underline; }
+
+@media(max-width:768px){
+  .hero { padding:44px 20px 32px; }
+  .hero h1 { font-size: 30px; }
+  .topnav { padding: 12px 16px; }
+  .section { padding: 0 16px; }
+  .cards { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="topnav">
+  <a class="home" href="../index.html">← AEAOS</a>
+  <div class="ptitle">Applications (L5)</div>
+  <span class="ver">v2.0.0</span>
+</header>
+
+<section class="hero">
+  <h1>Applications</h1>
+  <div class="sub">Runtime apps built on AEAOS Solutions (L5)</div>
+  <div class="tag">Composable, versioned, governance-bound runtime apps deployed on top of AEAOS Solutions — the L5 layer of the 7-layer lifecycle stack.</div>
+</section>
+
+<main>
+  <div class="section">
+    <h2><span class="num">//</span> Application Registry</h2>
+    <p class="intro">Every application is the true-source in <code style="font-family:'JetBrains Mono',monospace;color:var(--amber)">registry/application.yaml</code> and resolved by <code style="font-family:'JetBrains Mono',monospace;color:var(--amber)">ApplicationManager</code> at startup (Registry-first, P1). Applications advance through the environment promotion chain (P5) and are bound to their parent Solution + Kernel Capabilities.</p>
+    <div class="cards" id="appGrid"></div>
+  </div>
+
+  <div class="section">
+    <h2><span class="num">//</span> Manage via CLI</h2>
+    <p class="intro">Manage applications via CLI:</p>
+    <span class="cmd">aeaos app register|list|info|search|run</span>
+    <p class="intro" style="margin-top:12px;">Source &amp; specs: <a class="cli-link" href="https://github.com/stevenlau2000/aeas-platform" target="_blank" rel="noopener">github.com/stevenlau2000/aeas-platform →</a></p>
+  </div>
+</main>
+
+<footer class="footer">
+  <div>AEAOS v2.0.0 — Enterprise AI Agent Operating System</div>
+  <div class="motto">Understand. Decide. Execute. Evolve.</div>
+  <div style="margin-top:14px;"><a class="back" href="../index.html">← Back to AEAOS</a></div>
+</footer>
+
+<script>
+// ── 内嵌数据：源自 registry/application.yaml / apps/sales-coach-app/app.yaml（PE-0）──
+// 使用内嵌 JS 对象而非 fetch，确保 file:// 与 GitHub Pages 下零控制台报错。
+const APPS = [
+  {
+    id: 'sales-coach-app',
+    version: '1.0.0',
+    name: 'AC Sales Coach',
+    role_target: '销售代表 / 销售经理',
+    solution_ref: 'ac-sales-coach-solution@1.0.0',
+    capabilities: ['coaching', 'sales', 'consulting', 'reasoning'],
+    description: 'Active coaching for deal progression, call coaching, objection handling, pipeline hygiene & negotiation.',
+    policy: 'coaching-advisory-hitl@1.0.0',
+    status: 'published'
+  }
+];
+
+// 将能力数组渲染为 chip 标签，空时显示占位符
+function chips(arr, empty) {
+  return (arr && arr.length)
+    ? arr.map(x => `<span class="chip">${x}</span>`).join('')
+    : `<span class="chip">${empty || '—'}</span>`;
+}
+
+// 渲染单张应用玻璃卡片
+function appCard(a) {
+  return `<div class="card">
+    <div class="chead">
+      <span class="cid">${a.id}</span>
+      <span><span class="badge badge-blue">v${a.version}</span> <span class="badge badge-green">${a.status}</span></span>
+    </div>
+    <h3>${a.name}</h3>
+    <p class="cdesc">${a.description}</p>
+    <div class="mrow"><span class="k">role_target</span><span class="v">${a.role_target}</span></div>
+    <div class="mrow"><span class="k">solution_ref</span><span class="v"><span class="badge badge-blue">${a.solution_ref}</span></span></div>
+    <div class="mrow"><span class="k">capabilities</span><span class="v">${chips(a.capabilities)}</span></div>
+    <div class="mrow"><span class="k">governance</span><span class="v"><span class="badge badge-amber">${a.policy}</span></span></div>
+    <div class="advisory">⚠ <b>High-risk advice requires human-in-the-loop approval</b> &nbsp;(policy: ${a.policy})</div>
+  </div>`;
+}
+
+// 注入渲染结果
+document.getElementById('appGrid').innerHTML = APPS.map(appCard).join('');
+</script>
+</body>
+</html>
