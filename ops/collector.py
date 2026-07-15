@@ -14,7 +14,9 @@
 """
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 import time
 from collections import Counter, defaultdict
@@ -41,16 +43,52 @@ RK_COACH_APPROVAL = "app.coach.approval"
 RK_COACH_REQUESTED = "app.coach.requested"
 RK_TASK_STARTED = "scheduler.task_started"
 
-# Health 扣分参数
-_HEALTH_DLQ_PENALTY_PER = 5.0
-_HEALTH_DLQ_PENALTY_CAP = 50.0
-_HEALTH_AEP_PENALTY_PER = 2.0
-_HEALTH_AEP_PENALTY_CAP = 30.0
+# Health 扣分参数（3b 增量：可通过环境变量配置，向后兼容）
+_HEALTH_DEFAULTS = {
+    "DLQ_PENALTY_PER": 5.0,
+    "DLQ_PENALTY_CAP": 50.0,
+    "AEP_PENALTY_PER": 2.0,
+    "AEP_PENALTY_CAP": 30.0,
+}
+_HEALTH_ENV_MAP = {
+    "DLQ_PENALTY_PER": "AEAOS_HEALTH_DLQ_PENALTY_PER",
+    "DLQ_PENALTY_CAP": "AEAOS_HEALTH_DLQ_PENALTY_CAP",
+    "AEP_PENALTY_PER": "AEAOS_HEALTH_AEP_PENALTY_PER",
+    "AEP_PENALTY_CAP": "AEAOS_HEALTH_AEP_PENALTY_CAP",
+}
+
+
+def _load_health_config() -> dict:
+    """从环境变量加载 Health 权重参数，未设置时使用默认值。
+
+    环境变量对照：
+      AEAOS_HEALTH_DLQ_PENALTY_PER  (默认 5.0) — 每条 DLQ 扣分
+      AEAOS_HEALTH_DLQ_PENALTY_CAP   (默认 50.0) — DLQ 扣分上限
+      AEAOS_HEALTH_AEP_PENALTY_PER   (默认 2.0)  — 每个低于阈值的 AEP run 扣分
+      AEAOS_HEALTH_AEP_PENALTY_CAP   (默认 30.0) — AEP 扣分上限
+    """
+    config = dict(_HEALTH_DEFAULTS)
+    for key, env_var in _HEALTH_ENV_MAP.items():
+        val = os.environ.get(env_var, "").strip()
+        if val:
+            try:
+                config[key] = float(val)
+            except (ValueError, TypeError):
+                pass  # 非法的环境变量值忽略，回退到默认
+    return config
+
+
+# Health 运行时配置（模块级缓存，避免每次 collect_health 都读 env）
+_HEALTH_CONFIG = _load_health_config()
 
 # recent_events 在前端展示的最大量（全量 trace 仍完整保留于 traces[].events）
 RECENT_EVENTS_LIMIT = 500
 # aep-history.jsonl 保留的最大点数（防止无限增长）
 AEP_HISTORY_MAX = 5000
+
+# 事件源路径配置化（任务 2 增量）
+# 解析优先级（高→低）：CLI --source > 环境变量 AEAOS_EVENTS_PATH > 默认回退。
+EVENTS_PATH_ENV = "AEAOS_EVENTS_PATH"
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -66,6 +104,36 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
             except json.JSONDecodeError:
                 continue
     return out
+
+
+def resolve_events_path(
+    explicit: Optional[Path] = None,
+    repo: Optional[Path] = None,
+) -> Path:
+    """解析事件源 JSONL 路径，优先级（高→低）：
+
+    1. 显式传入（CLI ``--source`` 或注入 ``events_path``）；
+    2. 环境变量 ``AEAOS_EVENTS_PATH``；
+    3. 默认回退：``<repo>/.aeaos/run/events.jsonl``。
+
+    默认回退把仓库根解析为绝对路径后再拼接（对真实仓库根等价于 spec 给定的绝对
+    路径 ``/Users/mac/WorkBuddy/Amaris Enterprise AI Agent Operating System（AEAOS）/.aeaos/run/events.jsonl``）；
+    对临时仓库则停留在临时目录内，避免读取真实事件流（零仓库污染）。
+
+    文件是否存在由读取层 ``_read_jsonl`` 兜底，此处不强制存在。
+    """
+    # ① 显式路径（--source）优先级最高
+    if explicit is not None:
+        return Path(explicit)
+
+    # ② 环境变量 AEAOS_EVENTS_PATH
+    env_val = os.environ.get(EVENTS_PATH_ENV, "").strip()
+    if env_val:
+        return Path(env_val)
+
+    # ③ 默认回退：仓库根解析为绝对路径后拼接
+    base = Path(repo) if repo else Path(__file__).resolve().parent.parent
+    return base.resolve() / ".aeaos" / "run" / "events.jsonl"
 
 
 def _safe_load_yaml(path: Path) -> Dict[str, Any]:
@@ -111,10 +179,8 @@ class OpsCollector:
         hitl_decisions_path: Optional[Path] = None,
     ) -> None:
         self.repo = Path(repo) if repo else Path(__file__).resolve().parent.parent
-        self.events_path = (
-            Path(events_path) if events_path
-            else self.repo / ".aeaos" / "run" / "events.jsonl"
-        )
+        # 事件源路径：CLI --source > 环境变量 AEAOS_EVENTS_PATH > 默认回退
+        self.events_path = resolve_events_path(explicit=events_path, repo=self.repo)
         self.data_path = Path(data_path) if data_path else self.repo / "ops" / "data.json"
         self.aep_history_path = (
             Path(aep_history_path) if aep_history_path
@@ -198,10 +264,11 @@ class OpsCollector:
         below_runs = sum(1 for v in last_score.values() if v < AEP_THRESHOLD)
 
         score = 100.0
+        hc = _HEALTH_CONFIG  # 3b 增量：从环境变量加载的配置
         if dlq_count > 0:
-            score -= min(_HEALTH_DLQ_PENALTY_CAP, dlq_count * _HEALTH_DLQ_PENALTY_PER)
+            score -= min(hc["DLQ_PENALTY_CAP"], dlq_count * hc["DLQ_PENALTY_PER"])
         if below_runs > 0:
-            score -= min(_HEALTH_AEP_PENALTY_CAP, below_runs * _HEALTH_AEP_PENALTY_PER)
+            score -= min(hc["AEP_PENALTY_CAP"], below_runs * hc["AEP_PENALTY_PER"])
         if not events:
             score = 0.0
         score = max(0.0, round(score, 1))
@@ -651,6 +718,100 @@ class OpsCollector:
                 })
         return {"count": len(items), "items": items}
 
+    def collect_learning_stream(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Learning Stream 数据采集（4a · OPS-021）。
+
+        过滤 events 中 routing_key 含 learning/evolution/improve 的事件，
+        加上 orchestrator.loop_ended 的 end_state=EVOLVE/LEARN。
+        按时间倒序取最近 50 条。
+        """
+        learning_keys = {"learning", "evolution", "improve"}
+        learning_items: List[Dict[str, Any]] = []
+
+        for e in events:
+            rk = e.get("routing_key", "")
+            pl = e.get("payload", {}) or {}
+
+            # 按 routing_key 含 learning/evolution/improve 过滤
+            matched = any(k in rk for k in learning_keys)
+
+            # 加上 orchestrator.loop_ended 且 end_state 为 EVOLVE/LEARN
+            if not matched and rk == RK_LOOP_ENDED:
+                end_state = pl.get("end_state", "")
+                if end_state in ("EVOLVE", "LEARN"):
+                    matched = True
+
+            if not matched:
+                continue
+
+            # 构造 payload_summary（≤120 字）
+            payload_str = json.dumps(pl, ensure_ascii=False)
+            payload_summary = payload_str[:120]
+
+            learning_items.append({
+                "event_id": e.get("event_id", ""),
+                "routing_key": rk,
+                "session_id": e.get("session_id", ""),
+                "trace_id": e.get("trace_id", ""),
+                "ts": e.get("timestamp_utc", ""),
+                "payload_summary": payload_summary,
+            })
+
+        # 按 ts 倒序，取最近 50 条
+        learning_items.sort(key=lambda x: x.get("ts", ""), reverse=True)
+        return learning_items[:50]
+
+    def collect_foundation_panel(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Foundation 层指标面板（OPS-022）。
+
+        统计 foundation 相关事件：routing_key 以 ``foundation`` 开头，
+        或 source 为 ``foundation_bridge``（二者等价，均为 foundation 桥接产出）。
+        输出 ``{total, by_type: {routing_key: count}, recent: [近 20 条]}``。
+        """
+        items = [
+            e for e in events
+            if (e.get("routing_key", "") or "").startswith("foundation")
+            or e.get("source", "") == "foundation_bridge"
+        ]
+
+        by_type: Dict[str, int] = {}
+        for e in items:
+            rk = e.get("routing_key", "unknown")
+            by_type[rk] = by_type.get(rk, 0) + 1
+
+        # 按 ts 倒序，取最近 20 条
+        ordered = sorted(items, key=lambda e: e.get("timestamp_utc", ""), reverse=True)
+        recent: List[Dict[str, Any]] = []
+        for e in ordered[:20]:
+            pl = e.get("payload", {}) or {}
+            payload_summary = json.dumps(pl, ensure_ascii=False)[:120]
+            recent.append({
+                "event_id": e.get("event_id", ""),
+                "routing_key": e.get("routing_key", ""),
+                "ts": e.get("timestamp_utc", ""),
+                "payload_summary": payload_summary,
+            })
+
+        return {"total": len(items), "by_type": by_type, "recent": recent}
+
+    def collect_billing(self, repo: Optional[Path] = None) -> Dict[str, Any]:
+        """Billing 占位面板（OPS-024）。
+
+        读取 ``registry/cloud-store.yaml`` 的 providers 与
+        ``registry/resource-store.yaml`` 的 resources，仅展示配置态
+        （不接真实 metering 流水，仅展示占位提示）。零写、纯只读。
+        """
+        repo = Path(repo) if repo else self.repo
+        cloud = _safe_load_yaml(repo / "registry" / "cloud-store.yaml")
+        resource = _safe_load_yaml(repo / "registry" / "resource-store.yaml")
+        providers = cloud.get("providers", []) or []
+        resources = resource.get("resources", []) or []
+        return {
+            "providers": providers,
+            "resources": resources,
+            "note": "占位：计量数据接入中",
+        }
+
     def collect_aep_trend(self, events: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """每 session 取最终 evaluation.score_computed 作为 AEP 点。"""
         last: Dict[str, Dict[str, Any]] = {}
@@ -738,6 +899,9 @@ class OpsCollector:
         traces = self.collect_traces(events)
         fsm = self.collect_fsm_timelines(events)
         dlq = self.collect_dlq(events)
+        learning = self.collect_learning_stream(events)
+        foundation_panel = self.collect_foundation_panel(events)
+        billing = self.collect_billing(self.repo)
 
         data: Dict[str, Any] = {
             "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -758,6 +922,9 @@ class OpsCollector:
             "dlq": dlq,
             "aep_trend": merged_trend,
             "capability_usage": runtime["capability_usage"],
+            "learning_stream": learning,
+            "foundation_panel": foundation_panel,
+            "billing": billing,
         }
 
         self.data_path.parent.mkdir(parents=True, exist_ok=True)
@@ -793,18 +960,42 @@ class _NullWorkspaceManager:
         return []
 
 
-def run(repo: Optional[Path] = None) -> int:
-    """模块入口：构建并写出 data.json，返回进程退出码。"""
-    collector = OpsCollector(repo=repo)
+def run(repo: Optional[Path] = None, events_path: Optional[Path] = None) -> int:
+    """模块入口：构建并写出 data.json，返回进程退出码。
+
+    Args:
+        repo: 仓库根目录（默认自动推导）。
+        events_path: 显式事件源路径（CLI --source；覆盖默认与环境变量）。
+    """
+    collector = OpsCollector(repo=repo, events_path=events_path)
     data = collector.build()
     k = data["kpis"]
     print(f"[ops] wrote {collector.data_path} "
           f"({(collector.data_path.stat().st_size if collector.data_path.exists() else 0)} bytes)")
+    print(f"  source={collector.events_path}")
     print(f"  events={k['events']} aep_avg={k['aep_avg']} dlq={k['dlq']} "
           f"health={k['health']} traces={len(data['traces'])} "
           f"promotions={len(data['promotions'])} hitl={len(data['hitl_queue'])}")
     return 0
 
 
+def _parse_collector_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """解析 ops/collector.py 入口参数（本期增量仅 --source / --repo）。"""
+    p = argparse.ArgumentParser(
+        prog="ops/collector.py",
+        description="AEAOS OpsCollector — 读取事件源 → 写出 ops/data.json",
+    )
+    p.add_argument("--source", default=None,
+                   help="事件源 JSONL 路径（覆盖默认 .aeaos/run/events.jsonl 与 "
+                        "环境变量 AEAOS_EVENTS_PATH）")
+    p.add_argument("--repo", default=None,
+                   help="仓库根目录（默认：自动推导为采集器所在仓库根）")
+    return p.parse_args(argv)
+
+
 if __name__ == "__main__":
-    raise SystemExit(run())
+    _args = _parse_collector_args()
+    raise SystemExit(run(
+        repo=Path(_args.repo) if _args.repo else None,
+        events_path=Path(_args.source) if _args.source else None,
+    ))
