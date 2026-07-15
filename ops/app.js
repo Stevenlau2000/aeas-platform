@@ -9,6 +9,7 @@
 'use strict';
 
 const POLL_MS = 10000;          // design.md §8：默认 10s 轮询
+const POLL_MS_LIVE = 2000;      // OPS-023：Live Tail 开启时降到 2s
 const EVENTS_PER_PAGE = 200;    // Runtime Event Explorer 分页上限
 
 /* ── 全局状态（跨轮询保留，避免刷新丢失交互） ── */
@@ -24,6 +25,12 @@ let promoFilter = '';
 let wsTenant = '';
 let wsWorkspace = '';
 let currentPage = 'overview';
+
+// ── OPS-023 Live Tail 全局状态 ──
+let liveTail = false;                       // 是否开启 Live Tail
+let livePollTimer = null;                   // 轮询定时器（动态切换间隔）
+let seenEventIds = new Set();               // 上一轮已见 recent_events 的 id 集合
+let liveNewIds = new Set();                 // 本轮新到达的 event_id（用于高亮）
 
 const AEP_THRESHOLD = 0.70;
 
@@ -67,6 +74,17 @@ async function load() {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     DATA = await r.json();
     buildIndexes();
+    // OPS-023：Live Tail 开启时，按 event_id 集合 diff 计算新到达事件用于高亮
+    if (liveTail) {
+      const cur = new Set((DATA.recent_events || []).map(e => e.event_id));
+      if (seenEventIds.size === 0) {
+        // 刚开启：仅建立基线，首轮不闪
+        liveNewIds = new Set();
+      } else {
+        liveNewIds = new Set([...cur].filter(id => id && !seenEventIds.has(id)));
+      }
+      seenEventIds = cur;
+    }
     applyUrlScope();
     renderTopbar();
     renderActivePage();
@@ -119,7 +137,10 @@ function renderActivePage() {
   else if (currentPage === 'runtime') renderRuntime();
   else if (currentPage === 'promo') renderPromo();
   else if (currentPage === 'workspaces') renderWorkspaces();
+  else if (currentPage === 'learning') renderLearning();
   else if (currentPage === 'govern') renderGovern();
+  else if (currentPage === 'foundation') renderFoundation();
+  else if (currentPage === 'billing') renderBilling();
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -267,7 +288,7 @@ function renderRuntime() {
   const rkDatalist = `<datalist id="rk-list">${rkOptions.map(r => `<option value="${esc(r)}">`).join('')}</datalist>`;
 
   const eventRows = slice.length ? slice.map(e => `
-    <div class="trace-event" data-trace="${esc(e.trace_id)}" data-eid="${esc(e.event_id)}">
+    <div class="trace-event ${liveTail && liveNewIds.has(e.event_id) ? 'lt-new' : ''}" data-trace="${esc(e.trace_id)}" data-eid="${esc(e.event_id)}">
       <span class="te-key">${esc(e.routing_key)}</span>
       <span class="te-src">${esc(e.source || '—')} · ses ${esc((e.session_id || '').slice(-8))} · ${esc((e.payload && (e.payload.capability || e.payload.state || '')) || '')}</span>
       <span class="te-ts">${fmtTs(e.ts)}</span>
@@ -402,16 +423,35 @@ function renderPromo() {
 
     const gates = (p.gates || []).map(g => {
       const fail = !g.passed;
-      // security 门高亮缺 idempotency / HITL 的 capability
       const isSecurity = (g.gate === 'security');
-      const flag = isSecurity && /missing|fail|idempot|hitl/i.test(g.detail || '');
-      return `<div class="gate ${fail ? 'fail' : 'pass'} ${flag ? 'security-flag' : ''}">
+      const isPolicy = (g.gate === 'policy');
+      // security 门：详细标注缺 idempotency / HITL 的 capability
+      let secNotes = '';
+      if (isSecurity) {
+        const detail = (g.detail || '');
+        if (/side.affecting.*(?!idempot)/i.test(detail) || /idempotent.*false/i.test(detail)) {
+          secNotes += ' <span class="badge badge-red">缺 idempotency</span>';
+        }
+        if (/human.in.the.loop/i.test(detail) && !/disable.hitl/i.test(detail)) {
+          secNotes += ' <span class="badge badge-amber">缺 HITL</span>';
+        }
+        const flag = isSecurity && /missing|fail|idempot|hitl/i.test(detail || '');
+        if (flag && !secNotes) {
+          secNotes = ' <span class="badge badge-red">需关注</span>';
+        }
+      }
+      // policy 门：展示 policy verdict 原文（截断 ≤200 字）
+      let detailText = g.detail || (fail ? '未通过' : '通过');
+      if (isPolicy && detailText.length > 200) {
+        detailText = detailText.slice(0, 200) + '…';
+      }
+      return `<div class="gate ${fail ? 'fail' : 'pass'} ${isSecurity && /missing|fail|idempot|hitl/i.test(g.detail || '') ? 'security-flag' : ''}">
         <div class="gname">${esc(g.gate)}</div>
-        <div class="gdetail">${esc(g.detail || (fail ? '未通过' : '通过'))}</div>
+        <div class="gdetail">${esc(detailText)}${secNotes}</div>
       </div>`;
     }).join('');
 
-    const rollbackCmd = `aeaos ops rollback ${esc(p.solution_id)}${wsTenant ? ' --tenant ' + esc(wsTenant) : ''}${wsWorkspace ? ' --workspace ' + esc(wsWorkspace) : ''} --note "ops-console rollback"`;
+    const gateDetailCmd = `aeaos ops gate-detail ${esc(p.solution_id)}${wsTenant ? ' --tenant ' + esc(wsTenant) : ''}${wsWorkspace ? ' --workspace ' + esc(wsWorkspace) : ''}`;
 
     return `<div class="promo-card">
       <div class="promo-head">
@@ -424,7 +464,10 @@ function renderPromo() {
       <div class="gate-list">${gates || '<span class="muted">无门记录</span>'}</div>
       <div class="row between" style="margin-top:14px">
         <span class="muted">solution_id: <span class="mono">${esc(p.solution_id)}</span></span>
-        <button class="btn btn-amber btn-sm" onclick="confirmRollback('${esc(p.solution_id)}')">↩ 回滚一步</button>
+        <span>
+          <button class="btn btn-sm" onclick="renderCmd('Gate 详情', '${esc(gateDetailCmd)}')">🔍 Gate 详情</button>
+          <button class="btn btn-amber btn-sm" onclick="confirmRollback('${esc(p.solution_id)}')">↩ 回滚一步</button>
+        </span>
       </div>
     </div>`;
   }).join('') : `<div class="empty-box">无 Promotion 记录（registry/solution-promotions.yaml 为空）。</div>`;
@@ -474,6 +517,53 @@ function renderWorkspaces() {
     <h1><span class="accent">//</span> Workspaces
       <span class="muted" style="font-family:var(--sans);font-weight:400">（scope: ${wsTenant ? esc(wsTenant) + (wsWorkspace ? '/' + esc(wsWorkspace) : '') : 'global'}</span></h1>
     ${tree}`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Learning（4a · OPS-021）— Learning Stream 事件列表
+   ═══════════════════════════════════════════════════════════ */
+function renderLearning() {
+  const stream = DATA.learning_stream || [];
+  // 按 routing_key 分组提取不同类别
+  const byKey = {};
+  stream.forEach(item => {
+    const rk = item.routing_key || 'unknown';
+    if (!byKey[rk]) byKey[rk] = [];
+    byKey[rk].push(item);
+  });
+  const rkTypes = Object.keys(byKey).sort();
+
+  const items = stream.length ? stream.map(item => {
+    const rk = item.routing_key || '';
+    let badgeClass = 'blue';
+    if (rk.includes('evolve') || rk === 'orchestrator.loop_ended') badgeClass = 'green';
+    else if (rk.includes('learn') || rk.includes('improve')) badgeClass = 'amber';
+    else if (rk.includes('evolution')) badgeClass = 'cyan';
+    return `<div class="alert low" style="margin-bottom:8px">
+      <div style="flex:1">
+        <div class="row" style="margin-bottom:4px">
+          ${badge(rk, badgeClass)}
+          <span class="mono muted" style="font-size:11px">${fmtTs(item.ts)}</span>
+        </div>
+        <div class="a-detail">${esc(item.payload_summary || '')}</div>
+        <div class="a-meta">session ${esc((item.session_id || '').slice(-12))} · trace ${esc((item.trace_id || '').slice(-12))}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-box">暂无 Learning Stream 事件。</div>`;
+
+  const summary = rkTypes.map(rk => {
+    const n = byKey[rk].length;
+    return `<span class="badge badge-gray" style="margin-right:6px">${esc(rk)} (${n})</span>`;
+  }).join('');
+
+  $('page-learning').innerHTML = `
+    <h1><span class="accent">//</span> Learning Stream <span class="muted" style="font-family:var(--sans);font-weight:400">（最近 ${stream.length} 条）</span></h1>
+    <div class="glass">
+      <h2>事件类型分布</h2>
+      <div class="row" style="margin-bottom:12px">${summary || '<span class="muted">无数据</span>'}</div>
+      <h2>事件流</h2>
+      ${items}
+    </div>`;
 }
 
 function workspaceCard(w) {
@@ -533,17 +623,20 @@ function renderGovern() {
     </div>`;
   }).join('') : `<div class="empty-box">HITL 队列为空。</div>`;
 
-  // DLQ 监控
+  // DLQ 监控（4b 增量：每行加「重放」按钮）
   const dlq = DATA.dlq || { count: 0, items: [] };
-  const dlqRows = (dlq.items || []).map(d => `
-    <tr>
+  const dlqRows = (dlq.items || []).map(d => {
+    const replayCmd = `aeaos ops dlq-replay ${esc(d.event_id)}`;
+    return `<tr>
       <td class="mono">${esc(d.event_id)}</td>
       <td class="mono"><span class="link" onclick="jumpToEvent('${esc(d.original_event_id)}')">${esc(d.original_event_id)}</span></td>
       <td class="mono">${esc(d.consumer || '—')}</td>
       <td class="mono">${esc(d.routing_key || '—')}</td>
       <td class="muted">${esc(d.reason || '')}</td>
       <td class="mono">${fmtTs(d.ts)}</td>
-    </tr>`).join('') || `<tr><td colspan="6" class="muted">无死信事件。</td></tr>`;
+      <td><button class="btn btn-sm" onclick="renderCmd('DLQ 重放', '${esc(replayCmd)}')">重放</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="muted">无死信事件。</td></tr>`;
 
   $('page-govern').innerHTML = `
     <h1><span class="accent">//</span> Governance</h1>
@@ -555,7 +648,7 @@ function renderGovern() {
       </div>
       <div class="glass">
         <h2>Dead Letter Queue <span class="muted" style="font-family:var(--sans);font-weight:400">（${dlq.count}）</span></h2>
-        <table><thead><tr><th>DLQ Event</th><th>Original</th><th>Consumer</th><th>Key</th><th>Reason</th><th>Time</th></tr></thead>
+        <table><thead><tr><th>DLQ Event</th><th>Original</th><th>Consumer</th><th>Key</th><th>Reason</th><th>Time</th><th>操作</th></tr></thead>
         <tbody>${dlqRows}</tbody></table>
         <p class="muted" style="font-size:12px;margin-top:10px">点击 Original 事件 id 跳转至 Runtime 事件浏览器定位原事件。</p>
       </div>
@@ -577,6 +670,128 @@ function jumpToEvent(eventId) {
 /* ═══════════════════════════════════════════════════════════
    命令渲染 + 二次确认弹窗（前端只渲染命令，不执行，design.md §7.8）
    ═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════
+   Foundation Panel（OPS-022）— foundation.* 事件指标
+   ═══════════════════════════════════════════════ */
+function renderFoundation() {
+  const fp = DATA.foundation_panel || { total: 0, by_type: {}, recent: [] };
+  const byType = fp.by_type || {};
+  const total = fp.total || 0;
+  const maxCount = Math.max(1, ...Object.values(byType));
+
+  const typeKeys = Object.keys(byType).sort((a, b) => byType[b] - byType[a]);
+  const bars = typeKeys.length ? typeKeys.map(rk => {
+    const n = byType[rk];
+    const pct = Math.round(100 * n / maxCount);
+    return `<div class="fbar">
+      <div class="fbar-key" title="${esc(rk)}">${esc(rk)}</div>
+      <div class="fbar-track"><div class="fbar-fill" style="width:${pct}%"></div></div>
+      <div class="fbar-n">${n}</div>
+    </div>`;
+  }).join('') : `<div class="empty">无 foundation 事件。</div>`;
+
+  const recent = (fp.recent || []).map(it => `
+    <div class="alert low" style="margin-bottom:8px">
+      <div style="flex:1">
+        <div class="row" style="margin-bottom:4px">${badge(it.routing_key || '?', 'cyan')}
+          <span class="mono muted" style="font-size:11px">${fmtTs(it.ts)}</span>
+          <span class="mono muted" style="font-size:11px">${esc((it.event_id || '').slice(-12))}</span>
+        </div>
+        <div class="a-detail">${esc(it.payload_summary || '')}</div>
+      </div>
+    </div>`).join('') || `<div class="empty">最近无 foundation 事件。</div>`;
+
+  $('page-foundation').innerHTML = `
+    <h1><span class="accent">//</span> Foundation Panel <span class="muted" style="font-family:var(--sans);font-weight:400">（foundation.* 事件指标）</span></h1>
+    <div class="cards">
+      <div class="card"><div class="num">${fmtNum(total)}</div><div class="lbl">Foundation Events</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="glass">
+        <h2>按类型分布</h2>
+        ${bars}
+      </div>
+      <div class="glass">
+        <h2>最近 20 条</h2>
+        ${recent}
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   Billing（OPS-024）— 资源计量占位面板
+   ═══════════════════════════════════════════════ */
+function renderBilling() {
+  const b = DATA.billing || { providers: [], resources: [], note: '' };
+  const providers = b.providers || [];
+  const resources = b.resources || [];
+
+  const provRows = providers.length ? providers.map(p => `
+    <tr>
+      <td class="mono">${esc(p.id)}</td>
+      <td class="mono">${esc(p.kind || '')}</td>
+      <td class="mono">${esc(p.region || '')}</td>
+      <td class="mono">${esc(p.account || '—')}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="4" class="muted">未注册云提供方。</td></tr>`;
+
+  const resRows = resources.length ? resources.map(r => `
+    <tr>
+      <td class="mono">${esc(r.id)}</td>
+      <td class="mono">${esc(r.type || '')}</td>
+      <td class="mono">${esc(r.provider || '')}</td>
+      <td class="mono">${esc(r.status || '')}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="4" class="muted">未注册资源。</td></tr>`;
+
+  $('page-billing').innerHTML = `
+    <h1><span class="accent">//</span> Billing <span class="muted" style="font-family:var(--sans);font-weight:400">（资源计量占位面板）</span></h1>
+    <div class="glass">
+      <h2>Cloud Providers (${providers.length})</h2>
+      <table><thead><tr><th>Provider</th><th>Kind</th><th>Region</th><th>Account</th></tr></thead>
+        <tbody>${provRows}</tbody></table>
+    </div>
+    <div class="glass">
+      <h2>Resources (${resources.length})</h2>
+      <table><thead><tr><th>Resource</th><th>Type</th><th>Provider</th><th>Status</th></tr></thead>
+        <tbody>${resRows}</tbody></table>
+    </div>
+    <div class="empty-box">${esc(b.note || '占位：计量数据接入中')}</div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   OPS-023 Live Tail — 动态轮询 + 状态指示灯
+   ═══════════════════════════════════════════════ */
+function schedulePoll() {
+  const ms = liveTail ? POLL_MS_LIVE : POLL_MS;
+  if (livePollTimer) clearInterval(livePollTimer);
+  livePollTimer = setInterval(load, ms);
+}
+
+function bindLiveTail() {
+  on('lt-toggle', 'click', () => {
+    liveTail = !liveTail;
+    const btn = $('lt-toggle');
+    const light = $('lt-light');
+    const label = $('lt-label');
+    if (liveTail) {
+      btn.textContent = 'ON';
+      btn.className = 'btn btn-sm btn-green';
+      light.className = 'status-dot on live';
+      label.textContent = 'Live Tail';
+      load();  // 立即轮询一次（首轮仅建立基线，不闪）
+    } else {
+      btn.textContent = 'OFF';
+      btn.className = 'btn btn-sm';
+      light.className = 'status-dot off';
+      label.textContent = 'Live Tail (paused)';
+      liveNewIds = new Set();
+      if (currentPage === 'runtime') renderRuntime();
+    }
+    schedulePoll();
+  });
+}
+
 function renderCmd(title, cmd) {
   // 在 Governance 页底部临时插入命令块（也可改为弹窗）。此处用弹窗展示并支持复制。
   openModal(title, `<div class="cmd-block" style="margin:0"><code>${esc(cmd)}</code>
@@ -607,5 +822,6 @@ function closeModal() { $('modal-mask').classList.remove('show'); }
    ═══════════════════════════════════════════════════════════ */
 bindNav();
 on('modal-cancel', 'click', closeModal);
+bindLiveTail();
 load();
-setInterval(load, POLL_MS);
+schedulePoll();
