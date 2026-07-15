@@ -24,7 +24,7 @@ if str(_POC_HINT) not in sys.path:
     sys.path.insert(0, str(_POC_HINT))
 
 from apps.app_base import ApprovalRequest, ForcedApprovalGateway  # noqa: E402
-from ops.collector import OpsCollector  # noqa: E402
+from ops.collector import OpsCollector, RK_ESCALATION, RK_DEAD_LETTER  # noqa: E402
 
 
 # ── 工具 ─────────────────────────────────────────────────────────
@@ -149,7 +149,20 @@ def _append_audit(
     return rec
 
 
-# ── HITL 审批 / 驳回 ─────────────────────────────────────────────
+# ── Escalation 检测（3a Orchestrator 级重跑前置检查）────────────
+def _has_escalation_event(events: List[Dict[str, Any]], trace_id: str) -> bool:
+    """检查事件流中该 trace 是否存在 policy.escalation_required 事件。
+
+    用于 ops_hitl_approve/reject 的 escalation 优先判断：如果存在，走
+    Orchestrator 级重跑（rerun_escalated）；否则走 app 级重跑。
+    """
+    return any(
+        e.get("routing_key") == RK_ESCALATION and e.get("trace_id") == trace_id
+        for e in events
+    )
+
+
+# ── HITL 审批 / 驳回（含 escalation 优先重跑） ────────────────────
 def ops_hitl_approve(
     repo_root: Any,
     trace_id: str,
@@ -171,6 +184,30 @@ def ops_hitl_approve(
     )
 
     events = _read_jsonl(events_path)
+
+    # 3a 增量：优先检测 policy.escalation_required，走 Orchestrator 级重跑
+    if _has_escalation_event(events, trace_id):
+        from poc.escalation_rerun import rerun_escalated
+
+        # 从 escalation 事件中提取 session_id
+        session_id = ""
+        for e in events:
+            if e.get("routing_key") == RK_ESCALATION and e.get("trace_id") == trace_id:
+                session_id = e.get("session_id", "")
+                break
+        return {
+            **rerun_escalated(
+                session_id=session_id,
+                trace_id=trace_id,
+                repo_root=repo_root,
+                decision="approved",
+                reviewer=reviewer,
+                events_path=events_path,
+                decision_log_path=decision_log_path,
+            ),
+            "rerun_level": "orchestrator",
+        }
+
     req = _coaching_request_from_trace(events, trace_id)
     if req is None:
         raise ValueError(
@@ -188,6 +225,7 @@ def ops_hitl_approve(
         trace_id=trace_id, reason=f"forced by {reviewer}",
     )
     return {
+        "rerun_level": "app",
         "decision": "approved",
         "trace_id": trace_id,
         "category": req.get("category"),
@@ -209,7 +247,11 @@ def ops_hitl_reject(
     events_path: Any = None,
     decision_log_path: Any = None,
 ) -> Dict[str, Any]:
-    """注入 ForcedApprovalGateway("rejected") 重跑 run_coach_session（design.md §4.2）。"""
+    """注入 ForcedApprovalGateway("rejected") 重跑 run_coach_session（design.md §4.2）。
+
+    增强（3a）：如果事件流中该 trace 存在 policy.escalation_required，
+    优先走 Orchestrator 级重跑（rerun_escalated）。
+    """
     repo_root = Path(repo_root)
     events_path = Path(events_path) if events_path else repo_root / ".aeaos" / "run" / "events.jsonl"
     decision_log_path = (
@@ -217,6 +259,29 @@ def ops_hitl_reject(
     )
 
     events = _read_jsonl(events_path)
+
+    # 3a 增量：优先检测 policy.escalation_required
+    if _has_escalation_event(events, trace_id):
+        from poc.escalation_rerun import rerun_escalated
+
+        session_id = ""
+        for e in events:
+            if e.get("routing_key") == RK_ESCALATION and e.get("trace_id") == trace_id:
+                session_id = e.get("session_id", "")
+                break
+        return {
+            **rerun_escalated(
+                session_id=session_id,
+                trace_id=trace_id,
+                repo_root=repo_root,
+                decision="rejected",
+                reviewer=reviewer,
+                events_path=events_path,
+                decision_log_path=decision_log_path,
+            ),
+            "rerun_level": "orchestrator",
+        }
+
     req = _coaching_request_from_trace(events, trace_id)
     if req is None:
         raise ValueError(
@@ -234,6 +299,7 @@ def ops_hitl_reject(
         trace_id=trace_id, reason=reason,
     )
     return {
+        "rerun_level": "app",
         "decision": "rejected",
         "trace_id": trace_id,
         "category": req.get("category"),
@@ -295,5 +361,136 @@ def ops_rollback(
         "ok": ok,
         "before_env": before_env,
         "after_env": after_env,
+        "audit": audit,
+    }
+
+
+# ── P5 Gate 详情（3c） ─────────────────────────────────────────
+def ops_gate_detail(
+    repo_root: Any,
+    solution: str,
+    tenant: Optional[str] = None,
+    workspace: Optional[str] = None,
+    solution_manager: Any = None,
+) -> List[Dict[str, Any]]:
+    """输出该 solution 的 P5 gate 完整详情（gates.json 格式）。
+
+    solution_manager 可注入（测试用），否则从仓库构造真实 SolutionManager。
+    返回 gate 列表（与 promotion.P5_GATES 结构一致）。
+    """
+    repo_root = Path(repo_root)
+    if solution_manager is None:
+        from registry.solution import SolutionManager
+        solution_manager = SolutionManager(repo_root)
+
+    try:
+        gates = solution_manager.gates(solution)  # type: ignore[attr-defined]
+    except Exception:  # noqa: BLE001
+        try:
+            from registry.promotion import EnvironmentPromotion
+            ep = EnvironmentPromotion(repo_root, solution_manager)
+            ledger = ep._data.get("solutions", {}).get(solution, {})
+            history = ledger.get("history", []) or []
+            gates = history[-1].get("gates", []) if history else []
+        except Exception:  # noqa: BLE001
+            gates = []
+
+    result: List[Dict[str, Any]] = []
+    for g in gates:
+        result.append({
+            "gate": str(g.get("gate", "")),
+            "passed": bool(g.get("passed")),
+            "detail": str(g.get("detail", "")),
+        })
+    return result
+
+
+# ── DLQ 重放（4b · OPS-023 · 真重投 EventBus） ─────────────────
+def ops_dlq_replay(
+    repo_root: Any,
+    event_id: str,
+    events_path: Any = None,
+    decision_log_path: Any = None,
+    event_bus: Any = None,
+) -> Dict[str, Any]:
+    """DLQ 死信事件真重投（OPS-023 / DLQ 重投升级 4b）。
+
+    从 events.jsonl 中捞取 ``event_bus.dead_letter`` 事件 → 取
+    ``payload.original_event_id`` + ``payload.routing_key`` → 通过 EventBus
+    真正投递一个 ``event_bus.replay`` 事件（payload 含原始事件 id / routing_key /
+    replayed_at），使事件重新进入总线；同时把审计日志追加到
+    ``ops/hitl-decisions.jsonl``（decision="dlq_replay"）。
+
+    ``event_bus`` 可注入（测试用 mock）；不传则临时构建一个 EventBus 往系统临时
+    位置重投（零真实事件流污染）。
+
+    返回 ``{replayed, event_id, original_event_id, routing_key, replayed_at, audit}``。
+    找不到匹配的 dead_letter 事件时抛 ``ValueError``。
+    """
+    repo_root = Path(repo_root)
+    events_path = Path(events_path) if events_path else repo_root / ".aeaos" / "run" / "events.jsonl"
+    decision_log_path = (
+        Path(decision_log_path) if decision_log_path else repo_root / "ops" / "hitl-decisions.jsonl"
+    )
+
+    events = _read_jsonl(events_path)
+
+    # 查找匹配的 dead_letter 事件
+    dlq_event = None
+    for e in events:
+        if e.get("routing_key") == RK_DEAD_LETTER and e.get("event_id") == event_id:
+            dlq_event = e
+            break
+
+    if dlq_event is None:
+        raise ValueError(
+            f"事件流中找不到 event_id={event_id!r} 的 event_bus.dead_letter 事件"
+        )
+
+    pl = dlq_event.get("payload", {}) or {}
+    original_event_id = pl.get("original_event_id", "unknown")
+    routing_key = pl.get("routing_key", "unknown")
+    replayed_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    # 真正重投：通过 EventBus 发布 event_bus.replay 事件，使事件重新进入总线
+    if event_bus is None:
+        from poc.event_bus import EventBus, EventStore  # 延迟导入，避免重负载
+
+        # 临时 store（零真实事件流污染）：与审计日志同目录下的 replay 文件
+        replay_store = (
+            decision_log_path.parent / ".aeaos" / "run" / "replay-events.jsonl"
+        )
+        event_bus = EventBus(EventStore(replay_store), metrics_path=None)
+        asyncio.run(event_bus.start())
+
+    asyncio.run(event_bus.publish(
+        "event_bus.replay", "ops_dlq_replay",
+        {
+            "original_event_id": original_event_id,
+            "routing_key": routing_key,
+            "replayed_at": replayed_at,
+            "replayed_event_id": event_id,
+        },
+        session_id=dlq_event.get("session_id", ""),
+        trace_id=dlq_event.get("trace_id", ""),
+        tenant_id=dlq_event.get("tenant_id", ""),
+        routing_key="event_bus.replay",
+    ))
+
+    # 审计日志（决策落盘）
+    audit = _append_audit(
+        decision_log_path,
+        operator="ops-console",
+        decision="dlq_replay",
+        trace_id=event_id,
+        reason=f"DLQ replay: original={original_event_id} key={routing_key}",
+    )
+
+    return {
+        "replayed": True,
+        "event_id": event_id,
+        "original_event_id": original_event_id,
+        "routing_key": routing_key,
+        "replayed_at": replayed_at,
         "audit": audit,
     }
