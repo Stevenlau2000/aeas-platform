@@ -20,7 +20,10 @@
   <a data-page="promo"><span class="dot"></span><span>Promo</span></a>
   <a data-page="workspaces"><span class="dot"></span><span>Workspaces</span></a>
   <a data-page="govern"><span class="dot"></span><span>Govern</span></a>
-  <div class="foot">static · zero-backend<br>poll 10s</div>
+  <a data-page="foundation"><span class="dot"></span><span>Foundation</span></a>
+  <a data-page="billing"><span class="dot"></span><span>Billing</span></a>
+  <a data-page="learning"><span class="dot"></span><span>Learning</span></a>
+  <div class="foot">static · zero-backend<br>poll 10s · live 2s</div>
 </nav>
 
 <!-- 主区域：顶栏(Health/DLQ/tenant) + 内容页 -->
@@ -30,6 +33,11 @@
     <span class="pill" id="tb-health"><span class="health-light" id="tb-health-light"></span><span id="tb-health-txt">—</span></span>
     <span class="pill" id="tb-dlq">DLQ <strong id="tb-dlq-n">0</strong></span>
     <span class="pill" id="tb-tenant">tenant <strong id="tb-tenant-txt">global</strong></span>
+    <span class="pill" id="tb-live">
+      <span class="status-dot off" id="lt-light"></span>
+      <span id="lt-label">Live Tail</span>
+      <button class="btn btn-sm" id="lt-toggle" type="button">OFF</button>
+    </span>
     <span class="pill" id="tb-updated">—</span>
   </div>
 
@@ -38,7 +46,10 @@
     <div class="page" id="page-runtime"></div>
     <div class="page" id="page-promo"></div>
     <div class="page" id="page-workspaces"></div>
+    <div class="page" id="page-learning"></div>
     <div class="page" id="page-govern"></div>
+    <div class="page" id="page-foundation"></div>
+    <div class="page" id="page-billing"></div>
   </div>
 </div>
 
