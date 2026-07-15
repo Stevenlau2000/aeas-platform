@@ -65,3 +65,60 @@
 - PE-7 是 S7 运营层的**数据基座**。
 - S7 在此基础上增加：多租户 / 组织管理 / 计费 / 云部署 / 运营后台。
 - PE-7 的采集器在 S7 成为独立的微服务，不再从本地 JSONL 读取。
+
+---
+
+## 5. 接生产事件流（任务 2 增量）
+
+运维层默认从仓库内 `.aeaos/run/events.jsonl` 读取事件。要接入**真实生产事件流**，
+只需让采集器指向真实事件源文件，无需改动 `data.json` schema 或采集逻辑。
+
+### 5.1 事件源路径解析优先级（高 → 低）
+
+| 优先级 | 来源 | 用法 |
+|---|---|---|
+| ① 最高 | CLI `--source <path>` | `python ops/collector.py --source /path/events.jsonl`<br/>`aeaos ops collect --source /path/events.jsonl` |
+| ② 中 | 环境变量 `AEAOS_EVENTS_PATH` | `export AEAOS_EVENTS_PATH=/path/events.jsonl` 后直接 `aeaos ops collect` |
+| ③ 默认回退 | 仓库内 `.aeaos/run/events.jsonl` | 不传任何参数时的行为（相对仓库根解析为绝对路径） |
+
+- `--source` 接受**单个 JSONL 文件路径**（本期不接目录通配、不接消息总线）。
+- 默认回退把仓库根解析为绝对路径后拼接，对真实仓库根等价于
+  `.aeaos/run/events.jsonl`（绝对路径）；对临时/CI 仓库则停留在临时目录内，
+  不会误读真实仓库事件流（零仓库污染）。
+
+### 5.2 推荐接法
+
+```bash
+# 方式一：CLI --source（最明确，优先级最高）
+aeaos ops collect --source /var/lib/aeaos/run/events.jsonl
+python ops/collector.py --source /var/lib/aeaos/run/events.jsonl
+
+# 方式二：环境变量（适合常驻 cron / systemd 定时采集）
+export AEAOS_EVENTS_PATH=/var/lib/aeaos/run/events.jsonl
+aeaos ops collect        # 自动读取该真实事件流
+
+# 方式三：默认（不推荐生产，仅本地开发）
+aeaos ops collect        # 读取仓库内 .aeaos/run/events.jsonl
+```
+
+> 真实事件流就是既有的 `.aeaos/run/events.jsonl` 格式（每行一个 EventBus 事件，
+> 含 `trace_id` / `session_id` / `routing_key` / `payload`）。把该文件软链或拷贝到
+> 部署机上，再以上述任一方式指向即可。
+
+### 5.3 健壮性
+
+- `--source` 指向文件**不存在 / 为空 / 含损坏行**时，采集器**不崩溃**，
+  跳过损坏行并产出**零值/空壳 `data.json`**（与默认事件源缺失行为一致）。
+- 前端 `ops/index.html` 对空壳 `data.json` 也能渲染（空列表/状态灯降级），
+  不会出现白屏。
+
+### 5.4 已知限制（P2，本期不实现）
+
+- **消息总线（Kafka / NATS）接入**：因**零依赖约束**（仅标准库 + 既有 PyYAML，
+  不引入第三方客户端），本期**不接消息总线**。实时消费生产事件流留作 **P2**，
+  待生产 transport 就绪后通过环境变量/CLI 切换为「总线订阅」模式。
+- **目录通配 / 多文件合并**：本期 `--source` 仅接受单个文件，不支持
+  `events-*.jsonl` 通配或目录扫描（留作后续）。
+- **DLQ 重放 / 告警自愈**：本期仅监控+定位（关联 `original_event_id`），
+  重投/重试留 P2（见 design.md §8 待明确事项 6）。
+
